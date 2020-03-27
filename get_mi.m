@@ -71,20 +71,20 @@ out.MIp        = nan(size(lf_phase,2),size(hf_env,2),size(hf_env,dimtr));
 out.MIsurrmi   = nan(size(lf_phase,2),size(hf_env,2),size(hf_env,dimtr));
 
 % calculate observed MI
-disp('calcualting observed MI...')
+% disp('calcualting observed MI...')
 [mean_amps, ninds] = wrap_get_amps(lf_phase, hf_env, bins, highdim); %size(mean_amps)= #phase freq, #ampfreq, nbins
 uniform = 1/length(centers) .* ones(size(mean_amps)); %calculate here instead of in calc_mi for efficiency
 out.MI = calc_mi(centers, mean_amps, uniform);
 
 % calculate surrogate stats
 if doSurr
-    disp('permutation test...')
+%     disp('permutation test...')
     surr_mi = zeros([size(out.MI), nsurr]);
 
     fn=0;
     for s=1:nsurr
         %updatecounter(s,[1 nsurr],'surrogate run: ')
-        disp(['surrogate run # ' num2str(s)])
+%         disp(['surrogate run # ' num2str(s)])
         
         %randomize signal
         rot_hf_env = randomize_signal(hf_env,randType,highdim);
@@ -110,4 +110,4 @@ end
 out.mean_amps = mean_amps;  %useful halfstep, can calculate preferred phase later                                                   
 out.ninds     = ninds;
 
-disp('...finished MI for one channel pair')
+% disp('...finished MI for one channel pair')
