@@ -9,4 +9,5 @@ for filt_k = 1:nFilts
         'PassbandFrequency2', band_pass_freqs(filt_k,2), 'StopbandFrequency2', stop_band_freqs(filt_k,2), 'StopbandAttenuation1', attenuationDb(filt_k,1),...
         'PassbandRipple', pass_ripple(filt_k), 'StopbandAttenuation2', attenuationDb(filt_k,2), 'SampleRate', fs);
 end
+
 end

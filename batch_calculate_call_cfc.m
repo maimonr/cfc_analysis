@@ -1,4 +1,4 @@
-function [MIstruct,cfcResults] = batch_calculate_cfc(expType)
+function cfcResults = batch_calculate_call_cfc(expType)
 f = waitbar(0,'Initializing');
 band_pass_freqs = [4 8; 80 150];
 stop_band_freqs = [2 10; 70 160];
@@ -12,6 +12,9 @@ if ~exist('filtBank','var')
     filtBank = generate_filter_bank(filtType,band_pass_freqs,stop_band_freqs,attenuationDb,pass_ripple,fs_ds);
 end
 %%
+avgTetrode = false;
+selectFilt = [1 2];
+concatChannels = true;
 switch expType
     case 'adult_operant'
         baseDir = 'E:\ephys\adult_operant_recording\';
@@ -28,11 +31,10 @@ timerT = tic;
 T = readtable(fullfile(baseDir,'documents','recording_logs.csv'));
 expDates = unique(T{logical(T.usable),1});
 all_exp_k = 1;
-MIstruct = {};
 cfcResults = struct('MIStruct',[],'expDate',[],'sessionType',[],'included_call_type',[],'nTrial',[]);
 for session_k = 1:length(sessionTypes)
     for exp_k = 1:length(expDates)
-        [session_lfp, call_bat_nums] = prepare_data_for_cfc(baseDir,expType,sessionTypes{session_k},expDates(exp_k));
+        [session_lfp, call_bat_nums] = prepare_call_lfp_data_for_cfc(baseDir,expType,sessionTypes{session_k},expDates(exp_k),avgTetrode);
         
         if strcmp(sessionTypes,'operant')
             include_call_flags = {'all'};
@@ -41,7 +43,8 @@ for session_k = 1:length(sessionTypes)
         end
         
         for include_k = 1:length(include_call_flags)
-            [MIstruct{all_exp_k}, cfcResults(all_exp_k).nTrial] = calculate_cfc(session_lfp,call_bat_nums,expType,filtBank,include_call_flags{include_k},tRange);
+            [cfcResults(all_exp_k).MIstruct, cfcResults(all_exp_k).nTrial] = calculate_call_lfp_cfc(session_lfp,call_bat_nums,...
+                expType,filtBank,include_call_flags{include_k},'tRange',tRange,'selectFilt',selectFilt,'concatChannels',concatChannels);
             cfcResults(all_exp_k).expDate = expDates(exp_k);
             cfcResults(all_exp_k).sessionType = sessionTypes{session_k};
             cfcResults(all_exp_k).included_call_type = include_call_flags{include_k};

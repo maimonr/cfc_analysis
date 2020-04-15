@@ -1,4 +1,4 @@
-function [session_lfp, call_bat_nums] = prepare_data_for_cfc(baseDir,exp_type,session_type,expDate)
+function [session_lfp, call_bat_nums] = prepare_call_lfp_data_for_cfc(baseDir,exp_type,session_type,expDate,avgTetrode)
 
 eData = ephysData(exp_type);
 nBat = length(eData.batNums);
@@ -18,8 +18,13 @@ for bat_k = 1:nBat
     end
 end
 
-nTt = 4;
-nChannel_per_tt = 4;
+if avgTetrode
+    nChannel = 4;
+    nChannel_per_tt = 4;
+else
+    nChannel = 16;
+end
+
 session_lfp = cell(1,nBat);
 
 if all(cellfun(@isempty,{call_trig_csc.call_trig_csc}))
@@ -33,14 +38,18 @@ for bat_k = 1:nBat
     if nTrial < 1
         continue
     end
-    session_lfp{bat_k} = zeros(nTt,nT,nTrial);
-    usedChannels = eData.activeChannels{bat_k};
-    tetrodeChannels = reshape(0:(nTt*nChannel_per_tt)-1,nTt,[]);
+    session_lfp{bat_k} = zeros(nChannel,nT,nTrial);
     
-    for tt_k = 1:nTt
-        used_channel_idx = ismember(usedChannels,tetrodeChannels(:,tt_k));
-        current_lfp = squeeze(nanmean(call_trig_csc(bat_k).call_trig_csc(:,:,used_channel_idx),3));
-        session_lfp{bat_k}(tt_k,:,:) = current_lfp;
+    if avgTetrode
+        usedChannels = eData.activeChannels{bat_k};
+        tetrodeChannels = reshape(0:(nChannel*nChannel_per_tt)-1,nChannel,[]);
+        for tt_k = 1:nChannel
+            used_channel_idx = ismember(usedChannels,tetrodeChannels(:,tt_k));
+            current_lfp = squeeze(nanmean(call_trig_csc(bat_k).call_trig_csc(:,:,used_channel_idx),3));
+            session_lfp{bat_k}(tt_k,:,:) = current_lfp;
+        end
+    else
+        session_lfp{bat_k} = permute(call_trig_csc(bat_k).call_trig_csc,[3 1 2]);
     end
 end
 call_bat_nums = {call_trig_csc.batNums};
