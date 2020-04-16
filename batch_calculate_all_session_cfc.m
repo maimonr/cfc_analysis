@@ -10,26 +10,55 @@ cfc_calculation_inputs(2:2:end) = deal({cfcType,cData,chunk_size_s,selectFilt,av
 
 t = tic;
 
-results_fname = fullfile(outDir,[datestr(datetime,'yyyymmdd') '_call_free_cfc_results.mat']);
+if contains(baseDir,'lfp_data')
+    lfp_fnames = dir(fullfile(baseDir,'*LFP.mat'));
+else
+    expDirs = dir(fullfile(baseDir,'*20*'));
+    lfp_fnames = cell(1,length(expDirs));
+    
+    for exp_k = 1:length(expDirs)
+        lfp_fnames{exp_k} = dir(fullfile(expDirs(exp_k).folder,expDirs(exp_k).name,'lfpformat','*LFP.mat'));
+    end
+    lfp_fnames = vertcat(lfp_fnames{:});
+end
 
-lfp_fnames = dir(fullfile(baseDir,'*LFP.mat'));
 n_lfp_files = length(lfp_fnames);
 lfp_file_strs = arrayfun(@(x) strsplit(x.name,'_'),lfp_fnames,'un',0);
-
 batNums = cellfun(@(x) x{1},lfp_file_strs,'un',0);
 expDates = cellfun(@(x) datetime(x{2},'InputFormat','yyyyMMdd'),lfp_file_strs,'un',0);
+
+if isfile(outDir)
+    results_fname = outDir;
+    all_session_cfc_results = load(results_fname);
+    all_session_cfc_results = all_session_cfc_results.all_session_cfc_results;
+    completedIdx = arrayfun(@(x) ~isempty(x.MIstruct),all_session_cfc_results);
+    cfcProgress = all_session_cfc_results(completedIdx);
+    cfcProgress = struct2table(rmfield(cfcProgress,'MIstruct'));
+    
+    to_be_processed_idx = ~ismember(table(batNums,[expDates{:}]','VariableNames',{'batNum','expDate'}),cfcProgress);
+    lfp_fnames = lfp_fnames(to_be_processed_idx);
+    batNums = batNums(to_be_processed_idx);
+    expDates = expDates(to_be_processed_idx);
+    all_session_cfc_results = vertcat(all_session_cfc_results(completedIdx), struct('MIstruct',[],'batNum',batNums,'expDate',expDates));
+    
+    n_lfp_files = sum(to_be_processed_idx);
+    start_file_idx = sum(completedIdx);
+else
+    all_session_cfc_results = struct('MIstruct',[],'batNum',batNums,'expDate',expDates);
+    results_fname = fullfile(outDir,[datestr(datetime,'yyyymmdd') '_call_free_cfc_results.mat']);
+    start_file_idx = 0;
+end
 
 fs = 2083;
 notch_filter_60Hz=designfilt('bandstopiir','FilterOrder',2,'HalfPowerFrequency1',59.5,'HalfPowerFrequency2',60.5,'DesignMethod','butter','SampleRate',fs);
 notch_filter_120Hz=designfilt('bandstopiir','FilterOrder',2,'HalfPowerFrequency1',119.5,'HalfPowerFrequency2',120.5,'DesignMethod','butter','SampleRate',fs);
 notchFilters = {notch_filter_60Hz,notch_filter_120Hz};
 
-all_session_cfc_results = struct('MIstruct',[],'batNum',batNums,'expDate',expDates);
 errs = cell(1,n_lfp_files);
 success = false(1,n_lfp_files);
 
 lastProgress = 0;
-for file_k = 1:n_lfp_files
+for file_k = start_file_idx + (1:n_lfp_files)
     
     lfp_data_fname = fullfile(lfp_fnames(file_k).folder,lfp_fnames(file_k).name);
     try
