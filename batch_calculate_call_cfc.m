@@ -1,10 +1,8 @@
 function cfcResults = batch_calculate_call_cfc(baseDir,eData,varargin)
 
-pnames = {'chunk_size_s','selectFilt','avgTetrodes','sessType','included_call_type','ds_factor','filtBank','fs'};
-dflts  = {2,[1 2],false,'communication','all',2,[],2083};
-[chunk_size_s,selectFilt,avgTetrodes,sessionType,included_call_type,ds_factor,filtBank,fs] = internal.stats.parseArgs(pnames,dflts,varargin{:});
-
-f = waitbar(0,'Initializing');
+pnames = {'chunk_size_s','overlap_size_s','selectFilt','avgTetrodes','sessType','included_call_type','ds_factor','filtBank','fs','avgTrial'};
+dflts  = {2,1,[1 2],false,'communication','all',2,[],2083,true};
+[chunk_size_s,overlap_size_s,selectFilt,avgTetrodes,sessionType,included_call_type,ds_factor,filtBank,fs,avgTrial] = internal.stats.parseArgs(pnames,dflts,varargin{:});
 
 if isempty(filtBank)
     filtBank = get_HG_theta_filters(fs,ds_factor);
@@ -22,20 +20,25 @@ lfp_file_strs = arrayfun(@(x) strsplit(x.name,'_'),lfp_fnames,'un',0);
 batNums = cellfun(@(x) x{1},lfp_file_strs,'un',0);
 expDates = cellfun(@(x) datetime(x{2},'InputFormat','yyyyMMdd'),lfp_file_strs,'un',0);
 
-cfcResults = struct('MIstruct',[],'expDate',expDates,'batNum',batNums,'sessionType',sessionType,'included_call_type',included_call_type,'nTrial',[]);
+cfcResults = struct('MIstruct',[],'expDate',expDates,'batNum',batNums,...
+    'sessionType',sessionType,'included_call_type',included_call_type,...
+    'nTrial',[],'call_bat_nums',[],'used_call_IDs',[]);
 
-for exp_k = 1:n_lfp_files
+parfor exp_k = 1:n_lfp_files
     
     current_lfp_fname = fullfile(lfp_fnames(exp_k).folder,lfp_fnames(exp_k).name);
     activeChannels = eData.activeChannels{strcmp(batNums{exp_k},eData.batNums)};
-    [session_lfp, call_bat_nums, lfp_call_offset] = prepare_call_lfp_data_for_cfc(current_lfp_fname,avgTetrodes,activeChannels,ds_factor);
-    
-    [cfcResults(exp_k).MIstruct, cfcResults(exp_k).nTrial] = calculate_call_lfp_cfc(session_lfp,batNums{exp_k},call_bat_nums,...
-        filtBank,included_call_type,lfp_call_offset,'chunk_size_s',chunk_size_s,'selectFilt',selectFilt);
-    waitbar(exp_k/n_lfp_files,f,'Calculating CFC');
-end
+    [session_lfp, call_bat_nums, callIDs, lfp_call_offset] = prepare_call_lfp_data_for_cfc(current_lfp_fname,avgTetrodes,activeChannels,ds_factor);
 
-close(f)
+    [cfcResults(exp_k).MIstruct, cfcResults(exp_k).nTrial, ~, used_call_idx] = calculate_call_lfp_cfc(session_lfp,...
+        batNums{exp_k},call_bat_nums,filtBank,included_call_type,lfp_call_offset,...
+        'chunk_size_s',chunk_size_s,'overlap_size_s',overlap_size_s,'selectFilt',selectFilt,...
+        'avgTrial',avgTrial);
+    
+    cfcResults(exp_k).call_bat_nums = call_bat_nums(used_call_idx);
+    cfcResults(exp_k).used_call_IDs = callIDs(used_call_idx);
+    
+end
 
 end
 

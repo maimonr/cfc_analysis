@@ -1,7 +1,8 @@
-function [session_lfp_ds, call_bat_nums, lfp_call_offset] = prepare_call_lfp_data_for_cfc(current_lfp_fname,avgTetrode,activeChannels,ds_factor)
+function [session_lfp_ds, call_bat_nums, used_call_IDs, lfp_call_offset] = prepare_call_lfp_data_for_cfc(current_lfp_fname,avgTetrode,activeChannels,ds_factor)
 
-call_trig_csc = load(current_lfp_fname,'call_trig_csc','batNums','lfp_call_offset');
+call_trig_csc = load(current_lfp_fname,'call_trig_csc','batNums','lfp_call_offset','used_call_IDs');
 call_bat_nums = call_trig_csc.batNums;
+used_call_IDs = call_trig_csc.used_call_IDs;
 lfp_call_offset = call_trig_csc.lfp_call_offset;
 
 call_trig_csc = call_trig_csc.call_trig_csc;

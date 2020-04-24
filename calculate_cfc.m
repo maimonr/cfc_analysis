@@ -6,9 +6,12 @@ dflts  = {[],18,0,2,200,false};
 
 miParams = struct('nbins',nbins,'nSurr',nSurr,'randtype',randtype);
 
-if iscell(current_lfp)
+if iscell(current_lfp) && length(current_lfp) > 1
     multi_bat_flag = true;
     assert(length(current_lfp) == 2)
+elseif iscell(current_lfp)
+    current_lfp = current_lfp{1};
+    multi_bat_flag = false;
 else
     multi_bat_flag = false;
 end
@@ -31,7 +34,11 @@ end
 
 nSelectFilt = size(selectFilt,1);
 
-filteredHilb = get_filtered_hilbert_lfp(current_lfp,filtBank);
+if multi_bat_flag
+    filteredHilb = get_filtered_hilbert_lfp_multi_bat(current_lfp,filtBank);
+else
+    filteredHilb = get_filtered_hilbert_lfp(current_lfp,filtBank);
+end
 
 if nSelectFilt > filt_chunk_size
     MIstruct = chunk_MI_calculation_by_filter(filteredHilb,selectFilt,filt_chunk_size,miParams,parFlag);
@@ -47,35 +54,46 @@ end
 
 function filteredHilb = get_filtered_hilbert_lfp(current_lfp,filtBank)
 
-if ~iscell(current_lfp)
-    current_lfp = {current_lfp};
-    nBat = 1;
-else
-    nBat = length(current_lfp);
-end
-
 nFilt = length(filtBank);
-filteredHilb = cell(1,nBat);
+nChannel = size(current_lfp,1);
+nSamp = size(current_lfp,2);
+nTrial = size(current_lfp,3);
 
-for bat_k = 1:nBat
-    
-    nChannel = size(current_lfp{bat_k},1);
-    nSamp = size(current_lfp{bat_k},2);
-    nTrial = size(current_lfp{bat_k},3);
-    
-    filteredHilb{bat_k} = nan([nChannel nSamp nTrial nFilt]);
-    for ch_k = 1:nChannel
-        current_channel_lfp = squeeze(current_lfp{bat_k}(ch_k,:,:));
-        for filt_k = 1:nFilt
-            if ~any(isnan(current_channel_lfp),'all')
-                filteredPower = filtfilt(filtBank{filt_k},current_channel_lfp);
-                filteredHilb{bat_k}(ch_k,:,:,filt_k) = hilbert(squeeze(filteredPower));
-            end
+filteredHilb = nan([nChannel nSamp nTrial nFilt]);
+for ch_k = 1:nChannel
+    current_channel_lfp = squeeze(current_lfp(ch_k,:,:));
+    for filt_k = 1:nFilt
+        if ~any(isnan(current_channel_lfp),'all')
+            filteredPower = filtfilt(filtBank{filt_k},current_channel_lfp);
+            filteredHilb(ch_k,:,:,filt_k) = hilbert(squeeze(filteredPower));
         end
     end
 end
 
-filteredHilb = cat(4,filteredHilb{:});
+end
+
+function filteredHilb = get_filtered_hilbert_lfp_multi_bat(current_lfp,filtBank)
+
+nFilt = length(filtBank);
+nBat = length(current_lfp);
+
+assert(nFilt == nBat);
+
+nChannel = size(current_lfp{1},1);
+nSamp = size(current_lfp{1},2);
+nTrial = size(current_lfp{1},3);
+
+filteredHilb = nan([nChannel nSamp nTrial nBat]);
+
+for bat_k = 1:nBat
+    for ch_k = 1:nChannel
+        current_channel_lfp = squeeze(current_lfp{bat_k}(ch_k,:,:));
+        if ~any(isnan(current_channel_lfp),'all')
+            filteredPower = filtfilt(filtBank{bat_k},current_channel_lfp);
+            filteredHilb(ch_k,:,:,bat_k) = hilbert(squeeze(filteredPower));
+        end
+    end
+end
 
 end
 

@@ -13,8 +13,8 @@ else
 end
 
 timestamps = lfpData.timestamps(sessionIdx);
-lfpData = lfpData.lfpData(:,sessionIdx);
 usedChannels = lfpData.active_channels;
+lfpData = lfpData.lfpData(:,sessionIdx);
 
 [lfpData, timestamps] = get_ds_lfp_data(lfpData,timestamps,ds_factor);
 
@@ -127,7 +127,7 @@ for chunk_k = 1:nChunks
     current_csc(:,:,chunk_k) = lfpData(:,timeChunks(chunk_k,:));
 end
 
-for chunk_k = 1:nChunks
+parfor chunk_k = 1:nChunks
     chunk_lfp_data = current_csc(:,:,chunk_k);
     n_artifact_times(chunk_k,:) = sum(abs(chunk_lfp_data - mu) > artifact_nStd_factor*sigma,2);
     
