@@ -28,13 +28,14 @@ notch_filter_60Hz=designfilt('bandstopiir','FilterOrder',2,'HalfPowerFrequency1'
 notch_filter_120Hz=designfilt('bandstopiir','FilterOrder',2,'HalfPowerFrequency1',119.5,'HalfPowerFrequency2',120.5,'DesignMethod','butter','SampleRate',fs);
 notchFilters = {notch_filter_60Hz,notch_filter_120Hz};
 
-errs = cell(1,n_lfp_files);
-success = false(1,n_lfp_files);
+errs = cell(1,n_lfp_files + start_file_idx);
+success = false(1,n_lfp_files + start_file_idx);
 
+nFiles = length(lfp_fnames) + start_file_idx;
 lastProgress = 0;
 for file_k = start_file_idx + (1:n_lfp_files)
     
-    lfp_data_fname = fullfile(lfp_fnames(file_k).folder,lfp_fnames(file_k).name);
+    lfp_data_fname = fullfile(lfp_fnames(file_k - start_file_idx).folder,lfp_fnames(file_k - start_file_idx).name);
     try
         lfpData = load(lfp_data_fname);        
         all_session_cfc_results(file_k).MIstruct = calculate_all_session_cfc(lfpData,filtBank,notchFilters,cfc_calculation_inputs{:});
@@ -42,7 +43,7 @@ for file_k = start_file_idx + (1:n_lfp_files)
     catch err
         errs{file_k} = err;
     end
-    lastProgress = update_progress_and_save(results_fname,lfp_fnames,all_session_cfc_results,file_k,lastProgress,t);
+    lastProgress = update_progress_and_save(results_fname,nFiles,all_session_cfc_results,file_k,lastProgress,t);
 end
 
 end
@@ -78,9 +79,9 @@ end
 
 end
 
-function lastProgress = update_progress_and_save(results_fname,lfp_fnames,all_session_cfc_results,file_k,lastProgress,t)
+function lastProgress = update_progress_and_save(results_fname,nFiles,all_session_cfc_results,file_k,lastProgress,t)
 
-progress = 100*(file_k/length(lfp_fnames));
+progress = 100*(file_k/nFiles);
 elapsed_time = round(toc(t));
 
 if mod(progress,10) < mod(lastProgress,10)
