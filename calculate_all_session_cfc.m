@@ -34,9 +34,11 @@ for ch_k = 1:nChannel
     end
 end
 
+hilbert_filtered_lfp = get_hilbert_filtered_session_lfp(lfpData,filtBank);
+
 if strcmp(cfcType,'slidingWin')
     
-    MIstruct = calculate_sliding_win_MI(lfpData,fs,ds_factor,chunk_size_s,selectFilt,timestamps,artifact_nStd_factor,filtBank,nbins,nSurr,randtype);
+    MIstruct = calculate_sliding_win_MI(hilbert_filtered_lfp,fs,ds_factor,chunk_size_s,selectFilt,timestamps,artifact_nStd_factor,nbins,nSurr,randtype);
     
 else
     switch cfcType
@@ -49,7 +51,7 @@ else
             lfpData = lfpData(:,~call_free_idx);
     end
     
-    MIstruct = calculate_cfc(lfpData,filtBank,'selectFilt',selectFilt,...
+    MIstruct = calculate_cfc(lfpData,'selectFilt',selectFilt,...
         'n_phase_bins',nbins,'nSurr',nSurr,'randtype',randtype);
 end
 
@@ -102,7 +104,7 @@ lfpData = ttLFP;
 
 end
 
-function MIstruct = calculate_sliding_win_MI(lfpData,fs,ds_factor,chunk_size_s,selectFilt,timestamps,artifact_nStd_factor,filtBank,nbins,nSurr,randtype)
+function MIstruct = calculate_sliding_win_MI(lfpData,fs,ds_factor,chunk_size_s,selectFilt,timestamps,artifact_nStd_factor,nbins,nSurr,randtype)
 
 nChannel = size(lfpData,1);
 nT = size(lfpData,2);
@@ -131,10 +133,34 @@ parfor chunk_k = 1:nChunks
     chunk_lfp_data = current_csc(:,:,chunk_k);
     n_artifact_times(chunk_k,:) = sum(abs(chunk_lfp_data - mu) > artifact_nStd_factor*sigma,2);
     
-    current_MIstruct = calculate_cfc(chunk_lfp_data,filtBank,'selectFilt',selectFilt,...
+    current_MIstruct = calculate_cfc(chunk_lfp_data,'selectFilt',selectFilt,...
         'n_phase_bins',nbins,'nSurr',nSurr,'randtype',randtype);
     MI(chunk_k,:,:) = arrayfun(@(x) x.MI,current_MIstruct);
 end
 MIstruct = struct('MI',MI,'n_artifact_times',n_artifact_times,'timestamps',chunk_timestamps);
+
+end
+
+function hilbert_filtered_lfp = get_hilbert_filtered_session_lfp(session_lfp,filtBank)
+
+nBat = length(session_lfp);
+nFilt = length(filtBank);
+
+nChannel = size(session_lfp{1},1);
+nT = size(session_lfp{1},2);
+
+hilbert_filtered_lfp = nan(nChannel,nT,nFilt);
+
+for filt_k = 1:nFilt
+    if nBat == 1
+        current_lfp = squeeze(session_lfp{1});
+    else
+        current_lfp = squeeze(session_lfp{filt_k});
+    end
+    if ~any(isnan(current_lfp),'all')
+        filtered_lfp = filtfilt(filtBank{filt_k},current_lfp');
+        hilbert_filtered_lfp(:,:,filt_k) = hilbert(filtered_lfp)';
+    end
+end
 
 end

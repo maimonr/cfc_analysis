@@ -1,8 +1,8 @@
 function [all_session_cfc_results,success,errs] = batch_calculate_all_session_cfc(baseDir,filtBank,outDir,varargin)
 
-pnames = {'cfcType','cData','chunk_size_s','selectFilt','avgTetrodes','ds_factor','expDate'};
-dflts  = {'slidingWin',[],2,[1 2],false,2,[]};
-[cfcType,cData,chunk_size_s,selectFilt,avgTetrodes,ds_factor,expDate] = internal.stats.parseArgs(pnames,dflts,varargin{:});
+pnames = {'cfcType','cData','chunk_size_s','selectFilt','avgTetrodes','ds_factor','expDate','fs'};
+dflts  = {'slidingWin',[],2,[1 2],false,2,[],2083};
+[cfcType,cData,chunk_size_s,selectFilt,avgTetrodes,ds_factor,expDate,fs] = internal.stats.parseArgs(pnames,dflts,varargin{:});
 
 cfc_calculation_inputs = cell(1,2*length(dflts));
 cfc_calculation_inputs(1:2:end-1) = pnames;
@@ -21,6 +21,33 @@ else
     end
     lfp_fnames = vertcat(lfp_fnames{:});
 end
+
+[all_session_cfc_results, lfp_fnames, results_fname, n_lfp_files, start_file_idx] = preallocate_cfc_results(lfp_fnames,outDir);
+
+notch_filter_60Hz=designfilt('bandstopiir','FilterOrder',2,'HalfPowerFrequency1',59.5,'HalfPowerFrequency2',60.5,'DesignMethod','butter','SampleRate',fs);
+notch_filter_120Hz=designfilt('bandstopiir','FilterOrder',2,'HalfPowerFrequency1',119.5,'HalfPowerFrequency2',120.5,'DesignMethod','butter','SampleRate',fs);
+notchFilters = {notch_filter_60Hz,notch_filter_120Hz};
+
+errs = cell(1,n_lfp_files);
+success = false(1,n_lfp_files);
+
+lastProgress = 0;
+for file_k = start_file_idx + (1:n_lfp_files)
+    
+    lfp_data_fname = fullfile(lfp_fnames(file_k).folder,lfp_fnames(file_k).name);
+    try
+        lfpData = load(lfp_data_fname);        
+        all_session_cfc_results(file_k).MIstruct = calculate_all_session_cfc(lfpData,filtBank,notchFilters,cfc_calculation_inputs{:});
+        success(file_k) = true;
+    catch err
+        errs{file_k} = err;
+    end
+    lastProgress = update_progress_and_save(results_fname,lfp_fnames,all_session_cfc_results,file_k,lastProgress,t);
+end
+
+end
+
+function [all_session_cfc_results, lfp_fnames, results_fname, n_lfp_files, start_file_idx] = preallocate_cfc_results(lfp_fnames,outDir)
 
 n_lfp_files = length(lfp_fnames);
 lfp_file_strs = arrayfun(@(x) strsplit(x.name,'_'),lfp_fnames,'un',0);
@@ -49,36 +76,18 @@ else
     start_file_idx = 0;
 end
 
-fs = 2083;
-notch_filter_60Hz=designfilt('bandstopiir','FilterOrder',2,'HalfPowerFrequency1',59.5,'HalfPowerFrequency2',60.5,'DesignMethod','butter','SampleRate',fs);
-notch_filter_120Hz=designfilt('bandstopiir','FilterOrder',2,'HalfPowerFrequency1',119.5,'HalfPowerFrequency2',120.5,'DesignMethod','butter','SampleRate',fs);
-notchFilters = {notch_filter_60Hz,notch_filter_120Hz};
-
-errs = cell(1,n_lfp_files);
-success = false(1,n_lfp_files);
-
-lastProgress = 0;
-for file_k = start_file_idx + (1:n_lfp_files)
-    
-    lfp_data_fname = fullfile(lfp_fnames(file_k).folder,lfp_fnames(file_k).name);
-    try
-        lfpData = load(lfp_data_fname);        
-        all_session_cfc_results(file_k).MIstruct = calculate_all_session_cfc(lfpData,filtBank,notchFilters,cfc_calculation_inputs{:});
-    catch err
-        errs{file_k} = err;
-        success(file_k) = false;
-    end
-    success(file_k) = true;
-    
-    progress = 100*(file_k/length(lfp_fnames));
-    elapsed_time = round(toc(t));
-    
-    if mod(progress,10) < mod(lastProgress,10)
-        save(results_fname,'all_session_cfc_results')
-        fprintf('%d %% of current bat''s directories  processed\n',round(progress));
-        fprintf('%d total directories processed, %d s elapsed\n',file_k,elapsed_time);
-    end
-    lastProgress = progress;
 end
+
+function lastProgress = update_progress_and_save(results_fname,lfp_fnames,all_session_cfc_results,file_k,lastProgress,t)
+
+progress = 100*(file_k/length(lfp_fnames));
+elapsed_time = round(toc(t));
+
+if mod(progress,10) < mod(lastProgress,10)
+    save(results_fname,'all_session_cfc_results')
+    fprintf('%d %% of current bat''s directories  processed\n',round(progress));
+    fprintf('%d total directories processed, %d s elapsed\n',file_k,elapsed_time);
+end
+lastProgress = progress;
 
 end
