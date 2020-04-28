@@ -1,4 +1,8 @@
-function [session_lfp_ds, call_bat_nums, used_call_IDs, lfp_call_offset] = prepare_call_lfp_data_for_cfc(current_lfp_fname,avgTetrode,activeChannels,ds_factor)
+function [session_lfp_ds, call_bat_nums, used_call_IDs, lfp_call_offset] = prepare_call_lfp_data_for_cfc(current_lfp_fname,activeChannels,varargin)
+
+pnames = {'avgTetrode','ds_factor','tRange'};
+dflts  = {true,2,[]};
+[avgTetrode,ds_factor,tRange] = internal.stats.parseArgs(pnames,dflts,varargin{:});
 
 call_trig_csc = load(current_lfp_fname,'call_trig_csc','batNums','lfp_call_offset','used_call_IDs');
 call_bat_nums = call_trig_csc.batNums;
@@ -15,6 +19,13 @@ else
 end
 
 nT = size(call_trig_csc,1);
+if ~isempty(tRange)
+    t = linspace(-lfp_call_offset,lfp_call_offset,nT);
+    [~,t_idx] = inRange(t,tRange);
+    call_trig_csc = call_trig_csc(t_idx,:,:,:);
+    nT = sum(t_idx);
+end
+
 nTrial = size(call_trig_csc,2);
 
 if nTrial < 1
