@@ -61,7 +61,8 @@ end
 
 function scrambled = scramble_phase2(x)
 
-x = bsxfun(@minus,x,mean(x));
+mu = mean(x);
+x = bsxfun(@minus,x,mu);
 n = size(x,1);
 oldn = n;
 
@@ -80,6 +81,7 @@ y(2:n/2,:) = magy.*exp(1i*randphase);
 y((n/2+2):n,:) = conj(y(n/2:-1:2,:));
 scrambled = ifft(y);
 scrambled = scrambled(1:oldn,:);
+scrambled = scrambled + mu;
 
 
 

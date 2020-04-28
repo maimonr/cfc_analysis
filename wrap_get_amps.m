@@ -20,9 +20,13 @@ function [mean_amps, ninds]=wrap_get_amps(lf_phase, hf_env, bins, highdim)
 if highdim
     [mean_amps, ninds] = get_amps3(lf_phase, hf_env, bins);
 else
-    [mean_amps, ninds] = get_amps2(lf_phase, hf_env, bins);
+    if size(lf_phase,2)*size(hf_env,2) < 16
+        [mean_amps, ninds] = get_amps2_unwrapped(lf_phase, hf_env, bins);
+    else
+        [mean_amps, ninds] = get_amps2(lf_phase, hf_env, bins);
+    end
 end
-
+end
 
 
 function [mean_amps, ninds] = get_amps2(lf_phase, hf_env, bins) 
@@ -42,8 +46,29 @@ end
 
 %set mean amp to 0 if we found no instance of phase in a particular bin
 mean_amps(ninds==0)=0;
+end
 
+function [mean_amps, ninds] = get_amps2_unwrapped(lf_phase, hf_env, bins) 
 
+nbins = length(bins);
+nphase= size(lf_phase,2);
+namp = size(hf_env,2);
+[mean_amps, ninds] = deal(zeros(nphase, namp, nbins)); %dim=n_phase,n_amp,n_bins
+%
+for i=1:nbins
+    for phase_k = 1:nphase
+        for amp_k = 1:namp
+            ind = lf_phase(:,phase_k) >= bins(1,i) & lf_phase(:,phase_k) < bins(2,i);
+            
+            ninds(phase_k,amp_k,i) = sum(ind,1);
+            mean_amps(phase_k,amp_k,i) = nanmean(hf_env(ind,amp_k));
+        end
+    end
+end
+
+%set mean amp to 0 if we found no instance of phase in a particular bin
+mean_amps(ninds==0)=0;
+end
 
 
 function [mean_amps, ninds] = get_amps3(lf_phase, hf_env, bins)
@@ -63,3 +88,4 @@ end
 
 %set mean amp to 0 if we found no instance of phase in a particular bin
 mean_amps(ninds==0)=0;
+end
