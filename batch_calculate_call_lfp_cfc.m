@@ -23,7 +23,7 @@ cfcResults = struct('MIstruct',[],'batNum',[],'sessionType',[],'pair_bat_num',[]
 cfc_k = 1;
 nBat = length(eData.batNums);
 [all_session_lfp, all_call_bat_nums, all_callIDs, all_exp_dates, lfp_call_offset] = load_call_lfp_data(eData,lfp_fnames,avgTetrodes,ds_factor,tRange);
-
+t = tic;
 for bat_k = 1:nBat
     batNum = eData.batNums{bat_k};
     for call_type_k = 1:length(callTypes)
@@ -51,6 +51,7 @@ for bat_k = 1:nBat
             cfcResults(cfc_k).batNum = batNum;
             cfcResults(cfc_k).callType = callTypes{call_type_k};
             cfcResults(cfc_k).sessionType = sessionType;
+            fprintf('%d bats analyzed, %d s elapsed',cfc_k,round(toc(t)));
             cfc_k = cfc_k + 1;
         end
     end
