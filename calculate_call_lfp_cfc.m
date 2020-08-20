@@ -1,8 +1,8 @@
 function  [MIstruct,nTrial,t] = calculate_call_lfp_cfc(session_lfp,filtBank,lfp_call_offset,varargin)
 
-pnames = {'chunk_size_s','overlap_size_s','selectFilt','n_phase_bins','nSurr','randtype','fs','ds_factor','avgTrial','n_trial_boot','minCalls'};
-dflts  = {[],0,[],18,0,2,2083,2,true,0,10};
-[chunk_size_s,overlap_size_s,selectFilt,nbins,nSurr,randtype,fs,ds_factor,avgTrial,n_trial_boot,minCalls] = internal.stats.parseArgs(pnames,dflts,varargin{:});
+pnames = {'chunk_size_s','overlap_size_s','selectFilt','n_phase_bins','nSurr','randtype','fs','ds_factor','avgTrial','n_trial_boot','minCalls','bootFrac'};
+dflts  = {[],0,[],18,0,2,2083,2,true,0,10,0.8};
+[chunk_size_s,overlap_size_s,selectFilt,nbins,nSurr,randtype,fs,ds_factor,avgTrial,n_trial_boot,minCalls,bootFrac] = internal.stats.parseArgs(pnames,dflts,varargin{:});
 
 assert((n_trial_boot > 0 && avgTrial) || n_trial_boot == 0)
 
@@ -50,19 +50,25 @@ hilbert_filtered_lfp = get_hilbert_filtered_call_lfp(session_lfp,filtBank);
 for trial_k = 1:n_used_trial
     for t_k = 1:nChunks
         current_lfp = hilbert_filtered_lfp(:,t_idx(t_k,:),used_trial_idx{trial_k},:);
-        MIstruct{trial_k,t_k} = calculate_cfc(current_lfp,'selectFilt',selectFilt,...
-            'n_phase_bins',nbins,'nSurr',nSurr,'randtype',randtype);
+        
         if n_trial_boot > 0
-            nChannel = size(hilbert_filtered_lfp,1);
-            MIBoot = nan(n_trial_boot,nChannel);
+            
+            MIstruct_tmp = cell(1,n_trial_boot);
+            
             parfor boot_k = 1:n_trial_boot
                 trial_shuffled_lfp = get_trial_shuffled_lfp(current_lfp);
                 MI_struct_shuffle = calculate_cfc(trial_shuffled_lfp,'selectFilt',selectFilt,...
                     'n_phase_bins',nbins,'nSurr',nSurr,'randtype',randtype);
-                MIBoot(boot_k,:) = [MI_struct_shuffle.MI];
+                
+                bootstrap_lfp = get_bootstrap_lfp(current_lfp,bootFrac);
+                MIstruct_tmp{boot_k} = calculate_cfc(bootstrap_lfp,'selectFilt',selectFilt,...
+                    'n_phase_bins',nbins,'nSurr',nSurr,'randtype',randtype);
+                MIstruct_tmp{boot_k}.MI_trial_shuffle = [MI_struct_shuffle.MI];
             end
-            MIBoot = num2cell(MIBoot,1);
-            [MIstruct{trial_k,t_k}.MI_trial_boot] = deal(MIBoot{:});
+            MIstruct{trial_k,t_k} = [MIstruct_tmp{:}];
+        else
+            MIstruct{trial_k,t_k} = calculate_cfc(current_lfp,'selectFilt',selectFilt,...
+            'n_phase_bins',nbins,'nSurr',nSurr,'randtype',randtype);
         end
     end
 end
@@ -88,10 +94,10 @@ for trial_k = 1:nTrial
         else
             current_lfp = squeeze(session_lfp{filt_k}(:,:,trial_k));
         end
-        if ~any(isnan(current_lfp),'all')
-            filtered_lfp = filtfilt(filtBank{filt_k},current_lfp');
-            hilbert_filtered_lfp(:,:,trial_k,filt_k) = hilbert(filtered_lfp)';
-        end
+        nanIdx = ~any(isnan(current_lfp),2);
+        filtered_lfp = filtfilt(filtBank{filt_k},current_lfp(nanIdx,:)');
+        hilbert_filtered_lfp(nanIdx,:,trial_k,filt_k) = hilbert(filtered_lfp)';
+        
     end
 end
 
@@ -107,4 +113,11 @@ for filt_k = nFilt
     permIdx = randperm(nTrial);
     trial_shuffled_lfp(:,:,:,filt_k) = trial_shuffled_lfp(:,:,permIdx,filt_k);
 end
+end
+
+function bootstrap_lfp = get_bootstrap_lfp(current_lfp,bootFrac)
+
+nBoot = round(bootFrac*size(current_lfp,3));
+bootstrap_lfp = datasample(current_lfp,nBoot,3);
+
 end

@@ -1,11 +1,24 @@
-function cfcResults = batch_calculate_call_lfp_cfc(baseDir,eData,varargin)
+function [cfcResults, params] = batch_calculate_call_lfp_cfc(baseDir,eData,varargin)
 
-pnames = {'chunk_size_s','overlap_size_s','selectFilt','avgTetrodes','sessType','ds_factor','filtBank','fs','avgTrial','n_trial_boot','tRange','crossBat'};
-dflts  = {0.5,0.25,[1 2],false,'communication',2,[],2083,true,0,[],false};
-[chunk_size_s,overlap_size_s,selectFilt,avgTetrodes,sessionType,ds_factor,filtBank,fs,avgTrial,n_trial_boot,tRange,crossBat] = internal.stats.parseArgs(pnames,dflts,varargin{:});
+pnames = {'chunk_size_s','overlap_size_s','selectFilt','avgTetrodes','sessType','ds_factor','filtBank','fs_ds_factor','avgTrial','n_trial_boot','tRange','crossBat','outDir'};
+dflts  = {0.5,0.25,[1 2],false,'communication',2,[],15,true,0,[],false,[]};
+[chunk_size_s,overlap_size_s,selectFilt,avgTetrodes,sessionType,ds_factor,filtBank,fs_ds_factor,avgTrial,n_trial_boot,tRange,crossBat,outDir] = internal.stats.parseArgs(pnames,dflts,varargin{:});
+
+fs = eData.lfp_fs/fs_ds_factor;
 
 if isempty(filtBank)
     filtBank = get_HG_theta_filters(fs,ds_factor);
+end
+
+param_names = {'chunk_size_s','overlap_size_s','selectFilt','avgTetrodes','ds_factor','filtBank','fs','avgTrial','n_trial_boot','tRange','crossBat','eData'};
+params = {chunk_size_s,overlap_size_s,selectFilt,avgTetrodes,ds_factor,filtBank,fs,avgTrial,n_trial_boot,tRange,crossBat,eData};
+
+params = cell2struct(params,param_names,2);
+
+if ~isempty(outDir)
+    results_fname = fullfile(outDir,[datestr(datetime,'yyyymmdd') '_call_cfc_results.mat']);
+else
+    results_fname = [];
 end
 
 switch sessionType
@@ -18,7 +31,8 @@ end
 callTypes = {'calling','listening'};
 
 cfcResults = struct('MIstruct',[],'batNum',[],'sessionType',[],'pair_bat_num',[],...
-    'nTrial',[],'call_bat_nums',[],'used_call_IDs',[],'expDates',[],'callType',[]);
+    'nTrial',[],'call_bat_nums',[],'used_call_IDs',[],'expDates',[],'callType',[],...
+    'time',[]);
 
 cfc_k = 1;
 nBat = length(eData.batNums);
@@ -39,10 +53,12 @@ for bat_k = 1:nBat
         nPair = length(current_session_lfp);
         
         for pair_k = 1:nPair
-            [cfcResults(cfc_k).MIstruct, cfcResults(cfc_k).nTrial] = calculate_call_lfp_cfc(current_session_lfp{pair_k},...
+            [cfcResults(cfc_k).MIstruct, cfcResults(cfc_k).nTrial, cfcResults(cfc_k).time] = calculate_call_lfp_cfc(current_session_lfp{pair_k},...
                 filtBank,lfp_call_offset,'chunk_size_s',chunk_size_s,'overlap_size_s',overlap_size_s,...
-                'selectFilt',selectFilt,'avgTrial',avgTrial,'n_trial_boot',n_trial_boot);
+                'selectFilt',selectFilt,'avgTrial',avgTrial,'n_trial_boot',n_trial_boot,...
+                'fs',fs);
             
+            cfcResults(cfc_k).MIstruct = vertcat(cfcResults(cfc_k).MIstruct{:});
             cfcResults(cfc_k).call_bat_nums = current_call_bat_nums{pair_k};
             cfcResults(cfc_k).expDates = current_exp_dates{pair_k};
             cfcResults(cfc_k).used_call_IDs = current_callIDs{pair_k};
@@ -51,7 +67,12 @@ for bat_k = 1:nBat
             cfcResults(cfc_k).batNum = batNum;
             cfcResults(cfc_k).callType = callTypes{call_type_k};
             cfcResults(cfc_k).sessionType = sessionType;
-            fprintf('%d bats analyzed, %d s elapsed',cfc_k,round(toc(t)));
+            
+            if ~isempty(results_fname)
+               save(results_fname,'cfcResults','params'); 
+            end
+            
+            fprintf('%d bats analyzed, %d s elapsed\n',cfc_k,round(toc(t)));
             cfc_k = cfc_k + 1;
         end
     end
